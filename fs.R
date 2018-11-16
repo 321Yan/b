@@ -2,6 +2,8 @@
 # library(dpylr)
 
 # get the feature importance plot of trained models from mlr package 
+## r = resample(rf_lrn, tsk, resampling = rdesc, show.info = T, models = T,measures = mae)
+## plotFeatureImportance(r$models[[1]],10)
 plotFeatureImportance = function(model,topn = NULL) {
   f = getFeatureImportance(model)
   imp = f$res
@@ -22,5 +24,4 @@ plotFeatureImportance = function(model,topn = NULL) {
 }
 
 
-# r = resample(rf_lrn, tsk, resampling = rdesc, show.info = T, models = T,measures = mae)
-# plotFeatureImportance(r$models[[1]],10)
+
