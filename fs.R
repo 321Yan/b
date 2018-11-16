@@ -1,6 +1,7 @@
 # library(ggplot2)
 # library(dpylr)
 
+# get the feature importance plot of trained models from mlr package 
 plotFeatureImportance = function(model,topn = NULL) {
   f = getFeatureImportance(model)
   imp = f$res
