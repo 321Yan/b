@@ -11,7 +11,7 @@ plotFeatureImportance = function(model,topn = NULL) {
     p = ggplot(d,aes(Features,Importance))+geom_col()+
       scale_x_discrete(limits=d$Features)+
       labs(title = paste0("Feature Importance of ",model$learner$name," Model"))+
-      theme(plot.title = element_text(hjust = 0.5),axis.text.x = element_text(angle = 45, hjust = 1))
+      theme(plot.title = element_text(hjust = 0.5),axis.text.x = element_text(angle = 45, hjust = 1,size = 12))
   } else {
     p = ggplot(d[1:topn,],aes(Features,Importance))+geom_col()+
       scale_x_discrete(limits=d$Features[1:topn])+
