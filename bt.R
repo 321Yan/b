@@ -119,7 +119,7 @@ library(parallelMap)
 parallelStartSocket(cpus = detectCores()-1)
 
 # number of iterations used for hyperparameters tuning
-tc = makeTuneControlRandom(maxit = 20)
+tc = makeTuneControlRandom(maxit = 2)
 
 # resampling strategy for evaluating model performance
 # rdesc = makeResampleDesc("RepCV", reps = 2, folds = 3)
@@ -164,16 +164,16 @@ plotFeatureImportance(gbm_mod,10)
 #-------------------------------------
 
 #------------------ svm_radial ------------------
-svm_lrn = makeLearner(cl = "classif.svm", predict.type = "prob", par.vals = list())
-svm_ps = makeParamSet( makeNumericParam("gamma",lower = 0.001, upper= 0.1),makeNumericParam("cost",lower = 1,upper = 10),
-                       makeNumericParam("tolerance",lower = 0.0005 ,upper = 0.01))
-svm_tr = tuneParams(svm_lrn,tsk.train,cv3,acc,svm_ps,tc)
-svm_lrn = setHyperPars(svm_lrn,par.vals = svm_tr$x)
-
-svm_mod = train(svm_lrn, tsk.train)
-svm_pred = predict(svm_mod, tsk.test)
-performance(svm_pred, measures = acc)
-r = resample(svm_lrn, tsk, resampling = rdesc, show.info = T, models = F,measures =list(tpr,fpr,fnr,tnr,f1,acc))
+# svm_lrn = makeLearner(cl = "classif.svm", predict.type = "prob", par.vals = list())
+# svm_ps = makeParamSet( makeNumericParam("gamma",lower = 0.001, upper= 0.1),makeNumericParam("cost",lower = 1,upper = 10),
+#                        makeNumericParam("tolerance",lower = 0.0005 ,upper = 0.01))
+# svm_tr = tuneParams(svm_lrn,tsk.train,cv3,acc,svm_ps,tc)
+# svm_lrn = setHyperPars(svm_lrn,par.vals = svm_tr$x)
+# 
+# svm_mod = train(svm_lrn, tsk.train)
+# svm_pred = predict(svm_mod, tsk.test)
+# performance(svm_pred, measures = acc)
+# r = resample(svm_lrn, tsk, resampling = rdesc, show.info = T, models = F,measures =list(tpr,fpr,fnr,tnr,f1,acc))
 
 #-------------------------------------
 #------------------ xgboost_tree ------------------
@@ -200,7 +200,7 @@ xgbcv <- xgb.cv( params = params, data =dtrain, nrounds = 80, nfold = 5, showsd 
 
 # tuning
 xgb_lrn = makeLearner(cl = "classif.xgboost",predict.type = "prob")
-xgb_lrn$par.vals = list(objective="binary:logistic", eval_metric="error", nrounds=80, eta=0.08,stratified = T,verbose=0)
+xgb_lrn$par.vals = list(objective="binary:logistic", eval_metric="error", nrounds=80, eta=0.08, verbose=0)
 xgb_ps = makeParamSet( makeIntegerParam("max_depth",lower = 7,upper = 14),
                        makeNumericParam("min_child_weight",lower = 1,upper = 9), makeNumericParam("subsample",lower = 0.5,upper = 1),
                        makeNumericParam("colsample_bytree",lower = 0.5,upper = 1))
@@ -253,9 +253,8 @@ r = resample(xgb_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,mea
 
 
 #------------------ ensemble --------------------
-
 m = makeStackedLearner(base.learners = list(rf_lrn,xgb_lrn,gbm_lrn),
-                       predict.type = "prob", method = 'hill.climb')
+                       predict.type = "prob", method = "hill.climb")
 
 #------------------------------------------------
 
@@ -270,16 +269,16 @@ make_prediction = function(lrn,tsk,sub_data,subname) {
   pred = predict(mod,newdata = sub_data)
   
   
-  rdesc = makeResampleDesc("RepCV", reps = 3, folds = 3)
+  rdesc = makeResampleDesc("RepCV", reps = 2, folds = 3)
   r = resample(lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = acc)
   
   submission = data.frame(custid = testId, Score = NA)
-  submission$Score = pred$data$response
+  submission$Score = pred$data$prob.Y
   write.csv(submission,file = subname,row.names = F, col.names = T)
   
 }
 
-make_prediction(lrn = rf_lrn,tsk = tsk,sub_data = sub,subname = "rf_-planet.csv")
-make_prediction(lrn = xgb_lrn,tsk = tsk,sub_data = sub,subname = "xgb_-planet.csv")
-make_prediction(lrn = gbm_lrn,tsk = tsk,sub_data = sub,subname = "gbm_-planet.csv")
-make_prediction(m,tsk = tsk,sub_data = sub,subname = "ens_-planet.csv")
+make_prediction(lrn = rf_lrn,tsk = tsk,sub_data = sub,subname = "rf.csv")
+make_prediction(lrn = xgb_lrn,tsk = tsk,sub_data = sub,subname = "xgb.csv")
+make_prediction(lrn = gbm_lrn,tsk = tsk,sub_data = sub,subname = "gbm.csv")
+make_prediction(m,tsk = tsk,sub_data = sub,subname = "ens.csv")
