@@ -3,6 +3,7 @@ library(xgboost)
 library(mlr)
 library(dplyr)
 library(ggplot2)
+source("D:/sfu/kaggle/b/b/fs.R")
 
 
 rm(list=ls())
@@ -15,13 +16,14 @@ samples = read.csv("b.csv",header = TRUE)
 testIndex = sapply(samples$Sample,function(x){x=="Holdout"})
 testData = samples[testIndex,!colnames(samples)%in%c("lost","Sample")]
 testId = testData$custid
-testData = subset(testData, select = -custid)
+testData = subset(testData, select = -c(custid,esent))
+# testData = subset(testData, select = -custid)
 
 # no need for estimation/validation label
 samples = samples[!testIndex,!colnames(samples)%in%"Sample"]
 samplesId = samples$custid
-samples = subset(samples, select = -custid)
-
+samples = subset(samples, select = -c(custid,esent))
+# samples = subset(samples, select = -custid)
 
 
 # report missing data
@@ -100,12 +102,10 @@ tot = data_prep(train = train, test = test,option = 0)
 # plot(p1)
 
 
-View(tsk, properties = "prob")
 
 
 tsk = makeClassifTask(data = tot, target = "lost")
-View(listLearners(tsk, properties = "prob"))
-
+# View(listLearners(tsk, properties = "prob"))
 
 # split data into train and test
 h = makeResampleDesc("Holdout")
@@ -131,7 +131,7 @@ rdesc = makeResampleDesc("CV", iters = 3)
 
 #------------------ randomForest ------------------
 # build model
-rf_lrn = makeLearner(cl ="classif.randomForest", par.vals = list())
+rf_lrn = makeLearner(cl ="classif.randomForest", predict.type = "prob",par.vals = list())
 # define the search range of hyperparameters
 rf_ps = makeParamSet( makeIntegerParam("ntree",150,600),makeIntegerParam("nodesize",lower = 3,upper = 15),
                       makeIntegerParam("mtry",lower = 2,upper = 20),makeLogicalParam("importance",default = FALSE))
@@ -143,7 +143,8 @@ rf_lrn = setHyperPars(rf_lrn,par.vals = rf_tr$x)
 
 # evaluate performance use CV
 r = resample(rf_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = list(tpr,fpr,fnr,tnr,f1,acc))
-
+rf_mod = train(rf_lrn, tsk.train)
+plotFeatureImportance(rf_mod)
 #-------------------------------------
 
 
@@ -159,7 +160,7 @@ gbm_mod = train(gbm_lrn, tsk.train)
 gbm_pred = predict(gbm_mod, tsk.test)
 performance(gbm_pred, measures = acc)
 r = resample(gbm_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = list(tpr,fpr,fnr,tnr,f1,acc))
-
+plotFeatureImportance(gbm_mod,10)
 #-------------------------------------
 
 #------------------ svm_radial ------------------
@@ -214,39 +215,71 @@ r = resample(xgb_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,mea
 #------------------------------------------------
 
 #------------------ xgboost_linear ------------------
-xgb_train = tot[1:nrow(train),]
-xgb_test = tot[(nrow(train)+1):nrow(samples),]
+# xgb_train = tot[1:nrow(train),]
+# xgb_test = tot[(nrow(train)+1):nrow(samples),]
+# 
+# #using one hot encoding 
+# xgb_train_y <- xgb_train$lost 
+# xgb_test_y <- xgb_test$lost
+# xgb_train <- as.matrix(subset(xgb_train,select=-lost))
+# xgb_test <- as.matrix(subset(xgb_test,select=-lost))
+# 
+# #convert factor to numeric 
+# xgb_train_y<- as.numeric(xgb_train_y)-1
+# xgb_test_y  <- as.numeric(xgb_test_y )-1
+# 
+# dtrain = xgb.DMatrix(data = xgb_train,label = xgb_train_y) 
+# dtest = xgb.DMatrix(data =xgb_test,label= xgb_test_y )
+# 
+# params <- list(booster = "gblinear",
+#                objective = "binary:logistic", eta=0.1, gamma=0, max_depth=5, min_child_weight=1, subsample=0.8, colsample_bytree=0.8,nthread = 8)
+# xgbcv <- xgb.cv( params = params, data =dtrain, nrounds = 61, nfold = 5, showsd = T, stratified = T,
+#                  print_every_n = 10, early_stop_round = 20, maximize = F,metrics = 'error')
+# 
+# # tuning
+# xgbl_lrn = makeLearner(cl = "classif.xgboost",predict.type = "prob")
+# xgbl_lrn$par.vals = list(booster = "gblinear", objective="binary:logistic", eval_metric="error", nrounds=61, eta=0.1,stratified = T,verbose=0)
+# # xgbl_lrn = makePreprocWrapperCaret(xgbl_lrn, ppc.pca = TRUE, ppc.thresh = 1)
+# xgbl_ps = makeParamSet( makeNumericParam("lambda",lower = 0,upper = 1), makeNumericParam("subsample",lower = 0.5,upper = 1),
+#                        makeNumericParam("colsample_bytree",lower = 0.5,upper = 1))
+# xgbl_tr = tuneParams(xgbl_lrn,tsk.train,cv3,acc,xgb_ps,tc)
+# xgbl_lrn = setHyperPars(xgbl_lrn,par.vals = xgbl_tr$x)
+# 
+# xgbl_mod = train(xgbl_lrn, tsk.train)
+# xgbl_pred = predict(xgbl_mod, tsk.test)
+# performance(xgbl_pred, measures = acc)
+# r = resample(xgbl_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = list(tpr,fpr,fnr,tnr,f1,acc))
+#------------------------------------------------
 
-#using one hot encoding 
-xgb_train_y <- xgb_train$lost 
-xgb_test_y <- xgb_test$lost
-xgb_train <- as.matrix(subset(xgb_train,select=-lost))
-xgb_test <- as.matrix(subset(xgb_test,select=-lost))
 
-#convert factor to numeric 
-xgb_train_y<- as.numeric(xgb_train_y)-1
-xgb_test_y  <- as.numeric(xgb_test_y )-1
+#------------------ ensemble --------------------
 
-dtrain = xgb.DMatrix(data = xgb_train,label = xgb_train_y) 
-dtest = xgb.DMatrix(data =xgb_test,label= xgb_test_y )
-
-params <- list(booster = "gblinear",
-               objective = "binary:logistic", eta=0.1, gamma=0, max_depth=5, min_child_weight=1, subsample=0.8, colsample_bytree=0.8,nthread = 8)
-xgbcv <- xgb.cv( params = params, data =dtrain, nrounds = 61, nfold = 5, showsd = T, stratified = T,
-                 print_every_n = 10, early_stop_round = 20, maximize = F,metrics = 'error')
-
-# tuning
-xgb_lrn = makeLearner(cl = "classif.xgboost",predict.type = "prob")
-xgb_lrn$par.vals = list(booster = "gblinear", objective="binary:logistic", eval_metric="error", nrounds=61, eta=0.1,stratified = T,verbose=0)
-xgb_ps = makeParamSet( makeNumericParam("lambda",lower = 0,upper = 1), makeNumericParam("subsample",lower = 0.5,upper = 1),
-                       makeNumericParam("colsample_bytree",lower = 0.5,upper = 1))
-xgb_tr = tuneParams(xgb_lrn,tsk.train,cv3,acc,xgb_ps,tc)
-xgb_lrn = setHyperPars(xgb_lrn,par.vals = xgb_tr$x)
-
-xgb_mod = train(xgb_lrn, tsk.train)
-xgb_pred = predict(xgb_mod, tsk.test)
-performance(xgb_pred, measures = acc)
-r = resample(xgb_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = list(tpr,fpr,fnr,tnr,f1,acc))
+m = makeStackedLearner(base.learners = list(rf_lrn,xgb_lrn,gbm_lrn),
+                       predict.type = "prob", method = 'hill.climb')
 
 #------------------------------------------------
 
+#------------------ submimssion -----------------
+
+
+sub = data_prep(train=samples,test = testData,option = 1)
+sub = sub[[2]]
+
+make_prediction = function(lrn,tsk,sub_data,subname) {
+  mod = train(lrn,tsk)
+  pred = predict(mod,newdata = sub_data)
+  
+  
+  rdesc = makeResampleDesc("RepCV", reps = 3, folds = 3)
+  r = resample(lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = acc)
+  
+  submission = data.frame(custid = testId, Score = NA)
+  submission$Score = pred$data$response
+  write.csv(submission,file = subname,row.names = F, col.names = T)
+  
+}
+
+make_prediction(lrn = rf_lrn,tsk = tsk,sub_data = sub,subname = "rf_-planet.csv")
+make_prediction(lrn = xgb_lrn,tsk = tsk,sub_data = sub,subname = "xgb_-planet.csv")
+make_prediction(lrn = gbm_lrn,tsk = tsk,sub_data = sub,subname = "gbm_-planet.csv")
+make_prediction(m,tsk = tsk,sub_data = sub,subname = "ens_-planet.csv")
