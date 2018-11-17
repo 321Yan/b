@@ -40,8 +40,8 @@ plotFeatureImportance = function(model,topn = NULL) {
 cumulativeCapturedLift = function(predictData, classname, percent) {
   predictData = arrange(predictData, by = desc(predictData[,paste0("prob.",classname)]))
   totalPositive = sum(predictData$truth==classname)
-  predictData2 = predictData[1:floor(percent*nrow(predictData)),c('truth')]
-  record = sum(predictData2 == classname)
+  predictData = predictData[1:floor(percent*nrow(predictData)),c('truth')]
+  record = sum(predictData == classname)
   result = sum(record)/totalPositive
   return(result)
 }
