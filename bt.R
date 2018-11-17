@@ -144,6 +144,7 @@ rf_lrn = setHyperPars(rf_lrn,par.vals = rf_tr$x)
 # evaluate performance use CV
 r = resample(rf_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = list(tpr,fpr,fnr,tnr,f1,acc))
 rf_mod = train(rf_lrn, tsk.train)
+rf_pred = predict(rf_mod, tsk.test)
 plotFeatureImportance(rf_mod)
 #-------------------------------------
 
@@ -270,7 +271,7 @@ make_prediction = function(lrn,tsk,sub_data,subname) {
   
   
   rdesc = makeResampleDesc("RepCV", reps = 2, folds = 3)
-  r = resample(lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = acc)
+  r = resample(lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures =list(tpr,fpr,fnr,tnr,f1,acc))
   
   submission = data.frame(custid = testId, Score = NA)
   submission$Score = pred$data$prob.Y

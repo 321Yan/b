@@ -1,5 +1,5 @@
-# library(ggplot2)
-# library(dpylr)
+
+
 
 # get the feature importance plot of trained models from mlr package 
 # only work for tree-based model
@@ -31,4 +31,17 @@ plotFeatureImportance = function(model,topn = NULL) {
 }
 
 
+# compute the percent of positive response captured in the top ?% of predicted probabilities
+#------------------------ example ------------------------
+# xgb_mod = train(xgb_lrn, tsk.train)
+# xgb_pred = predict(xgb_mod, tsk.test)
+# cumulativeCapturedLift(xgb_pred$data,"prob.Y",0.4)
+#---------------------------------------------------------
+cumulativeCapturedLift = function(predictData, classname, percent) {
+  predictData = arrange(predictData, by = desc(predictData[,paste0("prob.",classname)]))
+  predictData = predictData[1:floor(percent*nrow(predictData)),c('truth','response')]
+  record = apply(predictData,1,function(x){x[1]==x[2]})
+  result = sum(record)/length(record)
+  return(result)
+}
 
