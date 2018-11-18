@@ -71,12 +71,12 @@ data_prep = function(train, test, option) {
 
   tot = createDummyFeatures(tot)
   # tot[,15:22] = as.data.frame(lapply(tot[,15:22],as.integer))
-  # prepro = caret::preProcess(tot,method = "bagImpute")
-  prepro = caret::preProcess(tot,method = "knnImpute")
+  prepro = caret::preProcess(tot,method = "bagImpute")
+  # prepro = caret::preProcess(tot,method = "knnImpute")
   tot = predict(prepro,tot)
   tot$DiscImp = DiscImp
   tot$TitleImp = TitleImp
-  
+  # tot$DA_age = tot$DA_Under20/(tot$DA_Under20+tot$DA_Over60)
   
   
   # tot = randomForest::na.roughfix(tot)
@@ -100,7 +100,7 @@ data_prep = function(train, test, option) {
 
 
 tot = data_prep(train = train, test = test,option = 0)
-write.csv(tot, file = "Imputed.csv",row.names = F, col.names = T)
+# write.csv(tot, file = "Imputed.csv",row.names = F, col.names = T)
 
 tsk = makeClassifTask(data = tot, target = "SUBSCRIBE")
 # View(listLearners(tsk, properties = "prob"))
@@ -124,7 +124,18 @@ rdesc = makeResampleDesc("RepCV", reps = 2, folds = 3)
 # rdesc = makeResampleDesc("CV", iters = 3)
 
 
+#------------- user-defined metric used during resampling ----------------
+f = function(task, model, pred,feats, extra.args){
+  predictData = pred$data
+  predictData = predictData[order(predictData$prob.Y,decreasing = T),]
+  totalPositive = sum(predictData$truth=="Y")
+  predictData = predictData[1:floor(0.4*nrow(predictData)),'truth']
+  result = (1-sum(predictData == "Y")/totalPositive)
+  return(result)
+}
 
+ccl = makeMeasure(id = "ccl", minimize = TRUE, properties = c("classif", "prob"), fun = f)
+#------------------------------------------------------------------------
 
 
 #------------------ randomForest ------------------
@@ -140,11 +151,10 @@ rf_tr = tuneParams(rf_lrn,tsk.train,cv3,acc,rf_ps,tc)
 rf_lrn = setHyperPars(rf_lrn,par.vals = rf_tr$x)
 
 # evaluate performance use CV
-r = resample(rf_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = list(tpr,fpr,fnr,tnr,f1,acc))
-rf_mod = train(rf_lrn, tsk.train)
-rf_pred = predict(rf_mod, tsk.test)
+r = resample(rf_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = list(tpr,fpr,fnr,tnr,f1,acc,ccl))
+
 plotFeatureImportance(rf_mod)
-cumulativeCapturedLift(rf_pred$data,"Y",0.4)
+
 
 #-------------------------------------
 
@@ -158,11 +168,11 @@ gbm_lrn = setHyperPars(gbm_lrn,par.vals = gbm_tr$x)
 
 gbm_mod = train(gbm_lrn, tsk.train)
 gbm_pred = predict(gbm_mod, tsk.test)
-r = resample(gbm_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = list(tpr,fpr,fnr,tnr,f1,acc))
-plotFeatureImportance(gbm_mod,10)
+r = resample(gbm_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = list(tpr,fpr,fnr,tnr,f1,acc,ccl))
 
-plotFeatureImportance(gbm_mod)
-cumulativeCapturedLift(gbm_pred$data,"Y",0.4)
+
+# plotFeatureImportance(gbm_mod)
+# cumulativeCapturedLift(gbm_pred$data,"Y",0.4)
 #-------------------------------------
 
 #------------------ svm_radial ------------------
@@ -174,8 +184,8 @@ svm_lrn = setHyperPars(svm_lrn,par.vals = svm_tr$x)
 
 svm_mod = train(svm_lrn, tsk.train)
 svm_pred = predict(svm_mod, tsk.test)
-r = resample(svm_lrn, tsk, resampling = rdesc, show.info = T, models = F,measures =list(tpr,fpr,fnr,tnr,f1,acc))
-cumulativeCapturedLift(svm_pred$data,"Y",0.4)
+r = resample(svm_lrn, tsk, resampling = rdesc, show.info = T, models = F,measures =list(tpr,fpr,fnr,tnr,f1,acc,ccl))
+# cumulativeCapturedLift(svm_pred$data,"Y",0.4)
 #-------------------------------------
 #------------------ xgboost_tree ------------------
 xgb_train = tot[1:nrow(train),]
@@ -210,9 +220,9 @@ xgb_lrn = setHyperPars(xgb_lrn,par.vals = xgb_tr$x)
 
 xgb_mod = train(xgb_lrn, tsk.train)
 xgb_pred = predict(xgb_mod, tsk.test)
-r = resample(xgb_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = list(tpr,fpr,fnr,tnr,f1,acc))
-plotFeatureImportance(xgb_mod)
-cumulativeCapturedLift(xgb_pred$data,"Y",0.4)
+r = resample(xgb_lrn, tsk, resampling = rdesc, show.info = T, models = FALSE,measures = list(tpr,fpr,fnr,tnr,f1,acc,ccl))
+# plotFeatureImportance(xgb_mod)
+# cumulativeCapturedLift(xgb_pred$data,"Y",0.4)
 
 
 #------------------------------------------------
@@ -220,7 +230,7 @@ cumulativeCapturedLift(xgb_pred$data,"Y",0.4)
 
 
 #------------------ ensemble --------------------
-m = makeStackedLearner(base.learners = list(rf_lrn,xgb_lrn,gbm_lrn,svm_lrn),
+m = makeStackedLearner(base.learners = list(xgb_lrn,gbm_lrn,svm_lrn),
                        predict.type = "prob", method = "hill.climb")
 
 #------------------------------------------------
@@ -230,7 +240,7 @@ m = makeStackedLearner(base.learners = list(rf_lrn,xgb_lrn,gbm_lrn,svm_lrn),
 
 sub = data_prep(train=samples,test = testData,option = 1)
 sub = sub[[2]]
-
+# write.csv(sub, file = "holdout.csv",row.names = F, col.names = T)
 make_prediction = function(lrn,tsk,sub_data,subname) {
   mod = train(lrn,tsk)
   pred = predict(mod,newdata = sub_data)
@@ -248,8 +258,8 @@ make_prediction = function(lrn,tsk,sub_data,subname) {
   
 }
 
-rfm = make_prediction(lrn = rf_lrn,tsk = tsk,sub_data = sub,subname = "rf.csv")
-cumulativeCapturedLift(rfm$data,"Y",0.4)
+# rfm = make_prediction(lrn = rf_lrn,tsk = tsk,sub_data = sub,subname = "rf.csv")
+# cumulativeCapturedLift(rfm$data,"Y",0.4)
 
 xgbm = make_prediction(lrn = xgb_lrn,tsk = tsk,sub_data = sub,subname = "xgb.csv")
 cumulativeCapturedLift(xgbm$data,"Y",0.4)
